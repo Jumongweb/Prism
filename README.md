@@ -1,6 +1,6 @@
 # Prism
 
-** Soroban transaction debugger — from cryptic error to root cause in one command.**
+## Soroban transaction debugger: from cryptic error to root cause in one command.
 
 Prism turns opaque Soroban errors into plain English, replays historical transactions against reconstructed ledger state, and lets you step through contract execution with full time-travel debugging. It handles everything from decoding `Error(Contract, #3)` into the actual enum name defined in the contract, to showing you exactly which host function call consumed the last byte of your CPU budget.
 
@@ -91,7 +91,7 @@ Prism is organized into a core library that all interfaces share, a shared infra
 │       └───────────────┼───────────────────┘          │
 │                       ▼                              │
 │           ┌───────────────────────┐                  │
-│           │   sextant-core (Rust) │                  │
+│           │   Prism-core (Rust) │                  │
 │           │                       │                  │
 │           │  Decode Engine        │                  │
 │           │  Replay Engine        │                  │
