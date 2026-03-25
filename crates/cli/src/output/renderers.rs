@@ -1,179 +1,163 @@
-//! Shared terminal renderers for CLI output.
+//! Output renderers for CLI reports.
+//!
+//! This module contains specialized renderers for different output formats.
 
-use colored::{ Colorize, ColoredString };
-use tabled::{ settings::Style, Table, Tabled };
+use prism_core::types::report::{DiagnosticReport, SuggestedFix};
 
-use prism_core::types::trace::{ LedgerEntryDiff, StateDiff };
-
-const BAR_WIDTH: usize = 10;
-
-/// Row representation for StateDiff table
-#[derive(Tabled)]
-struct StateDiffRow {
-    #[tabled(rename = "Key")]
-    key: String,
-    #[tabled(rename = "Before")]
-    before: String,
-    #[tabled(rename = "After")]
-    after: String,
-}
-
-/// Render a StateDiff as a formatted table with highlighting
-pub fn render_state_diff_table(state_diff: &StateDiff) -> String {
-    let rows: Vec<StateDiffRow> = state_diff.entries
-        .iter()
-        .map(|entry| {
-            let before = match &entry.before {
-                Some(value) => {
-                    if
-                        matches!(
-                            entry.change_type,
-                            prism_core::types::trace::DiffChangeType::Deleted
-                        )
-                    {
-                        value.red().to_string()
-                    } else {
-                        value.clone()
-                    }
-                }
-                None => "-".to_string(),
-            };
-
-            let after = match &entry.after {
-                Some(value) => {
-                    if
-                        matches!(
-                            entry.change_type,
-                            prism_core::types::trace::DiffChangeType::Created
-                        )
-                    {
-                        value.green().to_string()
-                    } else if
-                        matches!(
-                            entry.change_type,
-                            prism_core::types::trace::DiffChangeType::Updated
-                        )
-                    {
-                        value.green().to_string()
-                    } else {
-                        value.clone()
-                    }
-                }
-                None => "-".to_string(),
-            };
-
-            let key = match entry.change_type {
-                prism_core::types::trace::DiffChangeType::Created =>
-                    format!("+ {}", entry.key).green().to_string(),
-                prism_core::types::trace::DiffChangeType::Deleted =>
-                    format!("- {}", entry.key).red().to_string(),
-                prism_core::types::trace::DiffChangeType::Updated =>
-                    format!("~ {}", entry.key).yellow().to_string(),
-                prism_core::types::trace::DiffChangeType::Unchanged => entry.key.clone(),
-            };
-
-            StateDiffRow { key, before, after }
-        })
-        .collect();
-
-    Table::new(&rows).with(Style::modern()).to_string()
-}
-
-/// Render a single LedgerEntryDiff for detailed view
-pub fn render_ledger_entry_diff(entry: &LedgerEntryDiff) -> String {
-    let change_symbol = match entry.change_type {
-        prism_core::types::trace::DiffChangeType::Created => "+".green().to_string(),
-        prism_core::types::trace::DiffChangeType::Deleted => "-".red().to_string(),
-        prism_core::types::trace::DiffChangeType::Updated => "~".yellow().to_string(),
-        prism_core::types::trace::DiffChangeType::Unchanged => " ".dimmed().to_string(),
-    };
-
-    let before_value = entry.before.as_deref().unwrap_or("-");
-    let after_value = entry.after.as_deref().unwrap_or("-");
-
-    format!(
-        "{} {}\n  Before: {}\n  After:  {}",
-        change_symbol,
-        entry.key,
-        before_value.red(),
-        after_value.green()
-    )
-}
-
-/// Renders a colored budget utilization bar for Soroban resource usage.
-pub struct BudgetBar {
-    label: &'static str,
-    used: u64,
-    limit: u64,
-}
-
-impl BudgetBar {
-    pub fn new(label: &'static str, used: u64, limit: u64) -> Self {
-        Self { label, used, limit }
+/// Renders a bulleted list of suggested fixes from the diagnostic report.
+///
+/// Each fix is displayed with a distinctive icon indicating its characteristics:
+/// - 🔧 for standard fixes
+/// - ⚠️ for fixes that require a contract upgrade
+/// - 📋 for fixes with code examples
+pub fn render_fix_list(report: &DiagnosticReport) -> String {
+    if report.suggested_fixes.is_empty() {
+        return String::new();
     }
 
-    pub fn render(&self) -> String {
-        if self.limit == 0 {
-            return format!("{}: [n/a] 0%", self.label);
+    let mut output = String::new();
+    output.push_str("Actionable Fixes:\n");
+
+    for (index, fix) in report.suggested_fixes.iter().enumerate() {
+        let icon = get_fix_icon(fix);
+        let difficulty_badge = get_difficulty_badge(&fix.difficulty);
+        
+        output.push_str(&format!("  {} {}{}\n", icon, fix.description, difficulty_badge));
+        
+        if fix.requires_upgrade {
+            output.push_str("    ⚡ May require contract upgrade\n");
         }
-
-        let percent = self.percent();
-        let filled = ((percent as usize) * BAR_WIDTH + 50) / 100;
-        let filled = filled.min(BAR_WIDTH);
-        let bar = format!("{}{}", "█".repeat(filled), "░".repeat(BAR_WIDTH.saturating_sub(filled)));
-
-        format!(
-            "{}: [{}] {}% ({}/{})",
-            self.label,
-            self.colorize(bar),
-            percent,
-            self.used,
-            self.limit
-        )
+        
+        if let Some(example) = &fix.example {
+            output.push_str(&format!("    📄 Example: {}\n", example));
+        }
+        
+        // Add a blank line between fixes except for the last one
+        if index < report.suggested_fixes.len() - 1 {
+            output.push('\n');
+        }
     }
 
-    fn percent(&self) -> u64 {
-        if self.limit == 0 {
-            return 0;
-        }
+    output
+}
 
-        (self.used.saturating_mul(100) / self.limit).min(100)
+/// Returns the appropriate icon for a suggested fix based on its characteristics.
+fn get_fix_icon(fix: &SuggestedFix) -> &'static str {
+    if fix.requires_upgrade {
+        "🔒"
+    } else if fix.example.is_some() {
+        "📋"
+    } else {
+        "🔧"
     }
+}
 
-    fn colorize(&self, bar: String) -> ColoredString {
-        match self.percent() {
-            0..=69 => bar.green(),
-            70..=89 => bar.yellow(),
-            _ => bar.red(),
-        }
+/// Returns a badge indicating the difficulty level of the fix.
+fn get_difficulty_badge(difficulty: &str) -> String {
+    match difficulty.to_lowercase().as_str() {
+        "easy" => " [easy]".to_string(),
+        "medium" => " [medium]".to_string(),
+        "hard" => " [hard]".to_string(),
+        _ => String::new(),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::BudgetBar;
+    use super::*;
+    use prism_core::types::report::Severity;
 
-    #[test]
-    fn renders_expected_percentage() {
-        let rendered = BudgetBar::new("CPU", 60, 100).render();
-
-        assert!(rendered.contains("CPU:"));
-        assert!(rendered.contains("60%"));
-        assert!(rendered.contains("██████"));
+    fn create_test_report() -> DiagnosticReport {
+        DiagnosticReport {
+            error_category: "Budget".to_string(),
+            error_code: 1,
+            error_name: "cpu_limit_exceeded".to_string(),
+            summary: "CPU usage exceeded limit".to_string(),
+            detailed_explanation: "The contract used more CPU than allowed.".to_string(),
+            severity: Severity::Error,
+            root_causes: vec![],
+            suggested_fixes: vec![
+                SuggestedFix {
+                    description: "Reduce the number of loop iterations".to_string(),
+                    difficulty: "easy".to_string(),
+                    requires_upgrade: false,
+                    example: Some("Use for_each instead of iterate".to_string()),
+                },
+                SuggestedFix {
+                    description: "Optimize your contract logic".to_string(),
+                    difficulty: "medium".to_string(),
+                    requires_upgrade: false,
+                    example: None,
+                },
+                SuggestedFix {
+                    description: "Upgrade to a newer contract version".to_string(),
+                    difficulty: "hard".to_string(),
+                    requires_upgrade: true,
+                    example: None,
+                },
+            ],
+            contract_error: None,
+            transaction_context: None,
+            related_errors: vec![],
+        }
     }
 
     #[test]
-    fn clamps_over_limit_usage_to_full_bar() {
-        let rendered = BudgetBar::new("RAM", 150, 100).render();
-
-        assert!(rendered.contains("100%"));
-        assert!(rendered.contains("██████████"));
+    fn test_render_fix_list_with_fixes() {
+        let report = create_test_report();
+        let output = render_fix_list(&report);
+        
+        assert!(output.contains("Actionable Fixes:"));
+        assert!(output.contains("🔧"));
+        assert!(output.contains("📋"));
+        assert!(output.contains("🔒"));
+        assert!(output.contains("[easy]"));
+        assert!(output.contains("[medium]"));
+        assert!(output.contains("[hard]"));
+        assert!(output.contains("May require contract upgrade"));
     }
 
     #[test]
-    fn renders_na_for_missing_limit() {
-        let rendered = BudgetBar::new("CPU", 0, 0).render();
+    fn test_render_fix_list_empty() {
+        let mut report = create_test_report();
+        report.suggested_fixes = vec![];
+        let output = render_fix_list(&report);
+        
+        assert!(output.is_empty());
+    }
 
-        assert_eq!(rendered, "CPU: [n/a] 0%");
+    #[test]
+    fn test_get_fix_icon() {
+        let fix_with_example = SuggestedFix {
+            description: "Test".to_string(),
+            difficulty: "easy".to_string(),
+            requires_upgrade: false,
+            example: Some("code".to_string()),
+        };
+        assert_eq!(get_fix_icon(&fix_with_example), "📋");
+
+        let fix_requires_upgrade = SuggestedFix {
+            description: "Test".to_string(),
+            difficulty: "easy".to_string(),
+            requires_upgrade: true,
+            example: None,
+        };
+        assert_eq!(get_fix_icon(&fix_requires_upgrade), "🔒");
+
+        let fix_standard = SuggestedFix {
+            description: "Test".to_string(),
+            difficulty: "easy".to_string(),
+            requires_upgrade: false,
+            example: None,
+        };
+        assert_eq!(get_fix_icon(&fix_standard), "🔧");
+    }
+
+    #[test]
+    fn test_get_difficulty_badge() {
+        assert_eq!(get_difficulty_badge("easy"), " [easy]");
+        assert_eq!(get_difficulty_badge("medium"), " [medium]");
+        assert_eq!(get_difficulty_badge("hard"), " [hard]");
+        assert_eq!(get_difficulty_badge("unknown"), "");
     }
 }
