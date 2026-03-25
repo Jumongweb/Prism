@@ -1,7 +1,3 @@
-//! AuthTree terminal renderer for Soroban authorization structures.
-//!
-//! Displays hierarchical authorization data with Unicode box-drawing characters
-//! and icons for different auth types.
 
 use prism_core::types::trace::{ContractInvocation, ExecutionTrace};
 use std::fmt::Write;
@@ -30,19 +26,19 @@ mod box_chars {
 /// Render authorization tree for a contract invocation
 pub fn render_auth_tree(trace: &ExecutionTrace) -> anyhow::Result<String> {
     let mut output = String::new();
-    
+
     // Header
     writeln!(output, "{} Authorization Tree", icons::CONTRACT)?;
     writeln!(output, "Transaction: {}", trace.tx_hash)?;
     writeln!(output, "Network: {} | Ledger: {}", trace.network, trace.ledger_sequence)?;
     writeln!(output)?;
-    
+
     // Render each root invocation
     for (i, invocation) in trace.invocations.iter().enumerate() {
         let is_last = i == trace.invocations.len().saturating_sub(1);
         render_invocation(&mut output, invocation, "", is_last)?;
     }
-    
+
     Ok(output)
 }
 
@@ -56,7 +52,7 @@ fn render_invocation(
     let current_prefix = if prefix.is_empty() { "" } else { prefix };
     let connector = if is_last { box_chars::TOP_RIGHT } else { box_chars::VERTICAL_RIGHT };
     let child_prefix = if is_last { "    " } else { "│   " };
-    
+
     // Main invocation line
     let status_icon = if invocation.is_error { icons::ERROR } else { icons::SUCCESS };
     writeln!(
@@ -69,7 +65,7 @@ fn render_invocation(
         invocation.contract_id,
         invocation.function_name
     )?;
-    
+
     // Arguments
     if !invocation.arguments.is_empty() {
         let args_connector = if is_last { "    " } else { "│   " };
@@ -88,14 +84,14 @@ fn render_invocation(
             )?;
         }
     }
-    
+
     // Auth information (this would need to be added to ContractInvocation struct)
     // For now, we'll show placeholder auth info
     let auth_prefix = format!("{}{}", current_prefix, child_prefix);
     writeln!(output, "{}├─ {} Authorization:", auth_prefix, icons::AUTH_REQUIRED)?;
     writeln!(output, "{}│  └─ {} Provided: ✓", auth_prefix, icons::AUTH_PROVIDED)?;
     writeln!(output, "{}│  └─ {} Verified: ✓", auth_prefix, icons::AUTH_PROVIDED)?;
-    
+
     // Resource usage
     writeln!(output, "{}├─ ⚡ Resources:", auth_prefix)?;
     writeln!(
@@ -110,7 +106,7 @@ fn render_invocation(
         auth_prefix,
         invocation.total_memory_bytes
     )?;
-    
+
     // Sub-invocations
     if !invocation.sub_invocations.is_empty() {
         writeln!(output, "{}└─ {} Sub-invocations:", auth_prefix, icons::SUB_INVOCATION)?;
@@ -122,23 +118,23 @@ fn render_invocation(
     } else {
         writeln!(output, "{}└─ (no sub-invocations)", auth_prefix)?;
     }
-    
+
     Ok(())
 }
 
 /// Render a simplified auth tree focusing only on authorization structure
 pub fn render_auth_only(trace: &ExecutionTrace) -> anyhow::Result<String> {
     let mut output = String::new();
-    
+
     writeln!(output, "{} Authorization Structure", icons::AUTH_REQUIRED)?;
     writeln!(output, "Transaction: {}", trace.tx_hash)?;
     writeln!(output)?;
-    
+
     for (i, invocation) in trace.invocations.iter().enumerate() {
         let is_last = i == trace.invocations.len().saturating_sub(1);
         render_auth_invocation(&mut output, invocation, "", is_last)?;
     }
-    
+
     Ok(output)
 }
 
@@ -151,7 +147,7 @@ fn render_auth_invocation(
 ) -> anyhow::Result<()> {
     let connector = if is_last { box_chars::TOP_RIGHT } else { box_chars::VERTICAL_RIGHT };
     let child_prefix = if is_last { "    " } else { "│   " };
-    
+
     // Show contract and function with auth status
     let auth_status = if invocation.is_error { icons::AUTH_MISSING } else { icons::AUTH_PROVIDED };
     writeln!(
@@ -164,15 +160,15 @@ fn render_auth_invocation(
         invocation.contract_id,
         invocation.function_name
     )?;
-    
+
     // Show nested auth requirements
     let auth_prefix = format!("{}{}", prefix, child_prefix);
-    
+
     // Placeholder for actual auth requirements - this would need auth data
     writeln!(output, "{}├─ {} Required signatures:", auth_prefix, icons::AUTH_REQUIRED)?;
     writeln!(output, "{}│  └─ {} Contract authority", auth_prefix, icons::AUTH_PROVIDED)?;
     writeln!(output, "{}│  └─ {} Function caller", auth_prefix, icons::AUTH_PROVIDED)?;
-    
+
     // Sub-invocations with their auth requirements
     if !invocation.sub_invocations.is_empty() {
         writeln!(output, "{}└─ {} Cross-contract calls:", auth_prefix, icons::SUB_INVOCATION)?;
@@ -184,7 +180,7 @@ fn render_auth_invocation(
     } else {
         writeln!(output, "{}└─ (no additional auth requirements)", auth_prefix)?;
     }
-    
+
     Ok(())
 }
 
