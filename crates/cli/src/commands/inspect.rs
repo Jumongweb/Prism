@@ -9,7 +9,11 @@ pub struct InspectArgs {
     pub tx_hash: String,
 }
 
-pub async fn run(args: InspectArgs, network: &NetworkConfig, output_format: &str) -> anyhow::Result<()> {
+pub async fn run(
+    args: InspectArgs,
+    network: &NetworkConfig,
+    output_format: &str,
+) -> anyhow::Result<()> {
     let spinner = indicatif::ProgressBar::new_spinner();
     spinner.set_message("Fetching and decoding transaction...");
     spinner.enable_steady_tick(std::time::Duration::from_millis(100));

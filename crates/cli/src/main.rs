@@ -61,6 +61,8 @@ enum Commands {
     Whatif(commands::whatif::WhatifArgs),
     /// Export debug session as a regression test.
     Export(commands::export::ExportArgs),
+    /// Start the local JSON-RPC bridge for the Web dashboard.
+    Serve(commands::serve::ServeArgs),
     /// Clear local cache data.
     Clean(commands::clean::CleanArgs),
     /// Manage the error taxonomy database.
@@ -106,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         Commands::Replay(args) => commands::replay::run(args, &network).await?,
         Commands::Whatif(args) => commands::whatif::run(args, &network, &cli.output).await?,
         Commands::Export(args) => commands::export::run(args, &network).await?,
+        Commands::Serve(args) => commands::serve::run(args, &network).await?,
         Commands::Clean(args) => commands::clean::run(args).await?,
         Commands::Db(args) => commands::db::run(args).await?,
     }
@@ -159,6 +162,13 @@ mod tests {
         let cli = Cli::try_parse_from(["prism", "decode", "--verbose", "abc123"])
             .expect("cli should parse");
         assert_eq!(cli.verbose, 1);
+    }
+
+    #[test]
+    fn parses_serve_subcommand() {
+        let cli =
+            Cli::try_parse_from(["prism", "serve", "--port", "4040"]).expect("cli should parse");
+        assert!(matches!(cli.command, Commands::Serve(_)));
     }
 
     #[test]
