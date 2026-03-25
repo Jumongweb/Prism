@@ -37,8 +37,8 @@ struct Cli {
     #[command(subcommand)]
     command: Commands,
 
-    /// Output format: human, json, compact.
-    #[arg(long, default_value = "human", global = true)]
+    /// Output format: human, json, compact, or short.
+    #[arg(long, default_value = "human", value_parser = ["human", "json", "compact", "short"], global = true)]
     output: String,
 
     /// Network: mainnet, testnet, futurenet, or a custom RPC URL.
