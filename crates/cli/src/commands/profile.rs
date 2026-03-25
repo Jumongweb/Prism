@@ -1,4 +1,4 @@
-//! `prism profile` — Resource consumption profile with hotspot analysis.
+//! `prism profile` - Resource consumption profile with hotspot analysis.
 
 use clap::Args;
 use prism_core::types::config::NetworkConfig;
