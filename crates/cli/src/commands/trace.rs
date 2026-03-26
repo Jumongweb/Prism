@@ -2,6 +2,7 @@
 
 use clap::Args;
 use prism_core::types::config::NetworkConfig;
+use crate::output::trace_tree;
 
 #[derive(Args)]
 pub struct TraceArgs {
@@ -31,9 +32,12 @@ pub async fn run(
     progress.set_message("Reconstructing state and replaying transaction...");
     progress.enable_steady_tick(std::time::Duration::from_millis(100));
 
-    let trace = prism_core::replay::replay_transaction(&args.tx_hash, network).await?;
+        let trace = prism_core::replay::replay_transaction(&args.tx_hash, network).await?;
 
-    progress.finish_and_clear();
+        progress.finish_and_clear();
+    } else {
+        let trace = prism_core::replay::replay_transaction(&args.tx_hash, network).await?;
+    }
 
     // --- Terminal output (always shown) ---
     let output = if args.auth || args.auth_only {
@@ -46,9 +50,11 @@ pub async fn run(
         crate::output::format_trace(&trace, output_format)?
     };
 
-    if let Some(path) = &args.output_file {
-        std::fs::write(path, &output)?;
-        println!("Trace written to {path}");
+    if let Some(path) = args.output_file {
+        std::fs::write(&path, &output)?;
+        if !*quiet {
+            println!("Trace written to {path}");
+        }
     } else {
         println!("{output}");
     }
