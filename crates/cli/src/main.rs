@@ -227,10 +227,13 @@ mod tests {
     }
 
     #[test]
-    fn parses_serve_subcommand() {
-        let cli =
-            Cli::try_parse_from(["prism", "serve", "--port", "4040"]).expect("cli should parse");
-        assert!(matches!(cli.command, Commands::Serve(_)));
+    fn parses_diff_tx_hash_argument() {
+        let cli = Cli::try_parse_from(["prism", "diff", "deadbeef"]).expect("cli should parse");
+
+        match cli.command {
+            Commands::Diff(args) => assert_eq!(args.tx_hash, "deadbeef"),
+            _ => panic!("expected diff command"),
+        }
     }
 
     #[test]
