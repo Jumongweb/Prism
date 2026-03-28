@@ -17,6 +17,7 @@ mod commands;
 mod config;
 mod output;
 mod tui;
+mod version_check;
 
 use clap::{ ArgAction, CommandFactory, FromArgMatches, Parser, Subcommand };
 use tracing::level_filters::LevelFilter;
@@ -113,6 +114,9 @@ enum Commands {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Spawn the update check in the background immediately
+    let update_check_handle = tokio::spawn(version_check::check_for_updates());
+
     let cli = Cli::parse();
 
     // Initialize logging before resolving the network or dispatching commands.
@@ -167,6 +171,17 @@ async fn main() -> anyhow::Result<()> {
         Commands::Db(args) => commands::db::run(args).await?,
         Commands::Serve(args) => commands::serve::run(args).await?,
         Commands::Diagnostic(args) => commands::diagnostic::run(args).await?,
+    }
+
+    // After all normal output, check if the update version task detected a new release
+    // using a brief timeout so we don't hold up CLI exit if it's lagging.
+    if let Ok(Ok(Some(newer_version))) = tokio::time::timeout(std::time::Duration::from_millis(50), update_check_handle).await {
+        eprintln!(
+            "\n{}", 
+            colored::Colorize::bright_yellow(
+                format!("A newer version of Prism is available (v{}). Update to stay current!", newer_version).as_str()
+            )
+        );
     }
 
     Ok(())
